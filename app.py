@@ -54,7 +54,7 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
     elif under_management == "Owner Operated":
         management_clause = "The business should be suitable for an owner-operator."
 
-    prompt = f"""
+       prompt = f"""
     Search the internet for real, active businesses currently listed for sale in Australia.
     
     Criteria:
@@ -65,6 +65,9 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
     
     Find up to 5 actual business listings matching these details from popular Australian business brokers (e.g., seekbusiness, bsale, commercialrealestate etc.).
     
+    CRITICAL FOR LINKS: Do not return a generic search results page URL (e.g., do NOT use 'seekbusiness.com.au/businesses-for-sale/'). 
+    You must extract the exact, deep URL to the specific business profile page (e.g., 'seekbusiness.com.au/business-listing/name/123456' or 'bsale.com.au/listing/name-123456').
+    
     You must format your entire response as a valid JSON array of objects. Do not include any conversational text before or after the JSON block. Use this exact schema:
     [
       {{
@@ -74,11 +77,10 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
         "Revenue_Profit": "Stated weekly/annual turnover or profit if available (else 'Not stated')",
         "Management_Type": "Under Management or Owner Operated status",
         "Summary": "1-2 sentence description of what the business does",
-        "Listing_URL": "The exact full website address or link to the listing found in search results"
+        "Listing_URL": "The exact full, deep website address to the specific listing page found in search results"
       }}
     ]
     """
-
     # Retry configurations
     max_retries = 5
     wait_time = 45
