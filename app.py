@@ -3,7 +3,7 @@ import pandas as pd
 from google import genai
 from google.genai import types
 import json
-import time
+import re
 
 # 1. Page Title and Styling
 st.set_page_config(page_title="Aus Business Finder", layout="wide")
@@ -20,13 +20,11 @@ else:
 # 3. Sidebar Filter Configuration
 st.sidebar.header("🔍 Search Filters")
 
-# State Selection
 state = st.sidebar.selectbox(
     "Select State/Territory",
     ["All Australia", "NSW", "VIC", "QLD", "WA", "SA", "TAS", "ACT", "NT"]
 )
 
-# Cost Range Selection
 cost_range = st.sidebar.selectbox(
     "Select Price Range",
     [
@@ -39,19 +37,16 @@ cost_range = st.sidebar.selectbox(
     ]
 )
 
-# Under Management Toggle
 under_management = st.sidebar.selectbox(
     "Management Structure",
     ["Any", "Strictly Run Under Management", "Owner Operated"]
 )
 
-# Business Type Keywords (Optional)
 keywords = st.sidebar.text_input("Industry Keywords (e.g., Cafe, Gym, Manufacturing)", "")
 
 # 4. Search Execution Logic
 if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
     
-    # Constructing a highly specific search prompt
     management_clause = ""
     if under_management == "Strictly Run Under Management":
         management_clause = "The business must be explicitly advertised as 'run under management' or 'fully managed'."
@@ -67,9 +62,9 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
     - Management: {management_clause}
     - Keywords/Industry: {keywords if keywords else 'Any'}
     
-    Find up to 5 actual business listings matching these details from popular Australian business brokers (e.g., seekbusiness,bsale, commercialrealestate etc.).
+    Find up to 5 actual business listings matching these details from popular Australian business brokers (e.g., seekbusiness, bsale, commercialrealestate etc.).
     
-    Return ONLY a valid JSON array of objects with this exact schema:
+    You must format your entire response as a valid JSON array of objects. Do not include any conversational text before or after the JSON block. Use this exact schema:
     [
       {{
         "Business_Name": "Headline title of the listing",
@@ -85,48 +80,47 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
 
     with st.spinner("Searching the web and extracting real-time listings... Please wait."):
         try:
-            # We pass the google_search tool to allow live internet grounding
+            # Removed response_mime_type="application/json" to prevent the 400 error
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    tools=[{"google_search": {}}],
-                    response_mime_type="application/json"
+                    tools=[{"google_search": {}}]
                 )
             )
             
             if response and response.text:
-                clean_text = response.text.strip()
+                raw_text = response.text.strip()
                 
-                # Strip markdown blocks if returned
-                if clean_text.startswith("```json"):
-                    clean_text = clean_text[7:]
-                if clean_text.endswith("```"):
-                    clean_text = clean_text[:-3]
-                clean_text = clean_text.strip()
+                # Use regex to safely extract the JSON array even if markdown syntax is wrapped around it
+                json_match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
                 
-                listings = json.loads(clean_text)
-                
-                if listings:
-                    st.subheader(f"📊 Live Listings Found ({state} | {cost_range})")
-                    df = pd.DataFrame(listings)
+                if json_match:
+                    clean_json = json_match.group(0)
+                    listings = json.loads(clean_json)
                     
-                    # Display as a clean data table
-                    st.dataframe(df, use_container_width=True)
-                    
-                    # Add export to excel button
-                    import io
-                    towrite = io.BytesIO()
-                    df.to_excel(towrite, index=False, header=True)
-                    towrite.seek(0)
-                    st.download_button(
-                        label="📥 Download Listings Report (.xlsx)",
-                        data=towrite,
-                        file_name="aus_business_listings.xlsx",
-                        use_container_width=True
-                    )
+                    if listings:
+                        st.subheader(f"📊 Live Listings Found ({state} | {cost_range})")
+                        df = pd.DataFrame(listings)
+                        
+                        st.dataframe(df, use_container_width=True)
+                        
+                        import io
+                        towrite = io.BytesIO()
+                        df.to_excel(towrite, index=False, header=True)
+                        towrite.seek(0)
+                        st.download_button(
+                            label="📥 Download Listings Report (.xlsx)",
+                            data=towrite,
+                            file_name="aus_business_listings.xlsx",
+                            use_container_width=True
+                        )
+                    else:
+                        st.warning("No listings found. Try broadening your filters.")
                 else:
-                    st.warning("No listings matched your exact criteria. Try broadening your price range or state filters.")
+                    st.error("The AI found listings but returned them in an unreadable format. Please click Search again.")
+                    with st.expander("See Raw Response"):
+                        st.text(raw_text)
                     
         except Exception as e:
             st.error(f"An error occurred while generating listings: {str(e)}")
