@@ -4,6 +4,7 @@ from google import genai
 from google.genai import types
 import json
 import re
+import time
 
 # 1. Page Title and Styling
 st.set_page_config(page_title="Aus Business Finder", layout="wide")
@@ -78,7 +79,18 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
     ]
     """
 
-    with st.spinner("Searching the web and extracting real-time listings... Please wait."):
+    # Retry configurations
+    max_retries = 5
+    wait_time = 45
+    success = False
+    
+    # Placeholder for displaying live status messages to the user
+    status_box = st.empty()
+    countdown_box = st.empty()
+
+    for attempt in range(1, max_retries + 1):
+        status_box.info(f"⏳ Attempt {attempt} of {max_retries}: Contacting Google servers and scraping listings...")
+        
         try:
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
@@ -90,8 +102,6 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
             
             if response and response.text:
                 raw_text = response.text.strip()
-                
-                # Use regex to safely extract the JSON array
                 json_match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
                 
                 if json_match:
@@ -99,10 +109,10 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
                     listings = json.loads(clean_json)
                     
                     if listings:
+                        status_box.success("🎉 Search successful!")
                         st.subheader(f"📊 Live Listings Found ({state} | {cost_range})")
                         df = pd.DataFrame(listings)
                         
-                        # Display data frame with Clickable URL links
                         st.dataframe(
                             df, 
                             use_container_width=True,
@@ -125,14 +135,42 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
                             file_name="aus_business_listings.xlsx",
                             use_container_width=True
                         )
+                        success = True
+                        break  # Break out of the retry loop on success
                     else:
                         st.warning("No listings found. Try broadening your filters.")
+                        success = True
+                        break
                 else:
-                    st.error("The AI found listings but returned them in an unreadable format. Please click Search again.")
+                    st.error("The AI found listings but returned them in an unreadable format.")
                     with st.expander("See Raw Response"):
                         st.text(raw_text)
+                    success = True
+                    break
                     
         except Exception as e:
-            st.error(f"An error occurred while generating listings: {str(e)}")
+            error_msg = str(e)
+            
+            # Check specifically for the 503 error
+            if "503" in error_msg or "UNAVAILABLE" in error_msg:
+                if attempt < max_retries:
+                    status_box.warning(f"⚠️ Google servers are busy (503 error). Initiating automatic cool-down...")
+                    
+                    # Visual live countdown timer
+                    for remaining in range(wait_time, 0, -1):
+                        countdown_box.error(f"⏱️ Servers overloaded. Retrying automatically in {remaining} seconds... Please leave this tab open.")
+                        time.sleep(1)
+                    
+                    countdown_box.empty()  # Clear the countdown before the next attempt
+                else:
+                    status_box.error("❌ App stopped: Google servers remained unavailable after 5 attempts. Please try again later.")
+            else:
+                # For any other errors (like 400 or 429), stop immediately and show it
+                status_box.error(f"An unexpected error occurred: {error_msg}")
+                break
+
+    if not success and "503" in error_msg:
+        st.info("💡 Tip: Try changing your search keywords slightly or wait a minute before clicking Search again.")
+        
 else:
     st.info("💡 Adjust your filters in the sidebar and click **'Search Live Listings'** to begin your search.")
