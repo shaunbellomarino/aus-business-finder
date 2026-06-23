@@ -73,14 +73,13 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
         "Revenue_Profit": "Stated weekly/annual turnover or profit if available (else 'Not stated')",
         "Management_Type": "Under Management or Owner Operated status",
         "Summary": "1-2 sentence description of what the business does",
-        "Source_Platform": "The name of the site hosting the listing"
+        "Listing_URL": "The exact full website address or link to the listing found in search results"
       }}
     ]
     """
 
     with st.spinner("Searching the web and extracting real-time listings... Please wait."):
         try:
-            # Removed response_mime_type="application/json" to prevent the 400 error
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=prompt,
@@ -92,7 +91,7 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
             if response and response.text:
                 raw_text = response.text.strip()
                 
-                # Use regex to safely extract the JSON array even if markdown syntax is wrapped around it
+                # Use regex to safely extract the JSON array
                 json_match = re.search(r'\[\s*\{.*\}\s*\]', raw_text, re.DOTALL)
                 
                 if json_match:
@@ -103,7 +102,18 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
                         st.subheader(f"📊 Live Listings Found ({state} | {cost_range})")
                         df = pd.DataFrame(listings)
                         
-                        st.dataframe(df, use_container_width=True)
+                        # Display data frame with Clickable URL links
+                        st.dataframe(
+                            df, 
+                            use_container_width=True,
+                            column_config={
+                                "Listing_URL": st.column_config.LinkColumn(
+                                    "Source Link",
+                                    help="Click to open the live business listing page",
+                                    display_text="Open Listing 🔗"
+                                )
+                            }
+                        )
                         
                         import io
                         towrite = io.BytesIO()
