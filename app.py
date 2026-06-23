@@ -54,7 +54,7 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
     elif under_management == "Owner Operated":
         management_clause = "The business should be suitable for an owner-operator."
 
-       prompt = f"""
+    prompt = f"""
     Search the internet for real, active businesses currently listed for sale in Australia.
     
     Criteria:
@@ -81,6 +81,7 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
       }}
     ]
     """
+
     # Retry configurations
     max_retries = 5
     wait_time = 45
@@ -167,7 +168,6 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
                 else:
                     status_box.error("❌ App stopped: Google servers remained unavailable after 5 attempts. Please try again later.")
             else:
-                # For any other errors (like 400 or 429), stop immediately and show it
                 status_box.error(f"An unexpected error occurred: {error_msg}")
                 break
 
