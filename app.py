@@ -82,7 +82,7 @@ if st.sidebar.button("🚀 Search Live Listings", use_container_width=True):
         try:
             # Removed response_mime_type="application/json" to prevent the 400 error
             response = client.models.generate_content(
-                model='gemini-2.5-pro',
+                model='gemini-2.5-flash',
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[{"google_search": {}}]
